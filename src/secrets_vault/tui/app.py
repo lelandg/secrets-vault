@@ -181,10 +181,19 @@ class SvApp(App):
             self.update_detail()
 
     def action_push(self) -> None:
-        pass
+        self.run_worker(self._push())
+
+    async def _push(self) -> None:
+        if not await self.ensure_unlocked():
+            return
+        from ..planner import build_plan
+        from .plan_screen import PlanScreen
+        plan = build_plan(self.registry, self.state)
+        self.push_screen(PlanScreen(plan))
 
     def action_settings(self) -> None:
-        pass
+        from .modals import SettingsScreen
+        self.push_screen(SettingsScreen())
 
 
 def run() -> None:

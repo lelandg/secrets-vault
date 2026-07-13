@@ -1,11 +1,12 @@
-"""Modal screens for the TUI: unlock, edit/generate value, one-time reveal, name entry."""
+"""Modal screens for the TUI: unlock, edit/generate value, one-time reveal, name entry, settings."""
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Static
+from textual.widgets import Button, Checkbox, Input, Label, Select, Static
 
 from .. import clipboard
-from ..generate import generate
+from ..generate import PRESETS, generate
+from ..settings import save_settings
 
 
 class PassphraseModal(ModalScreen[str | None]):
@@ -121,3 +122,41 @@ class NameModal(ModalScreen[str | None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(self.query_one("#name-input", Input).value or None)
+
+
+class SettingsScreen(ModalScreen[None]):
+    def compose(self) -> ComposeResult:
+        s = self.app.settings
+        with Vertical(id="dialog"):
+            yield Label("Settings")
+            yield Checkbox("Show generated secrets once after creating them",
+                           value=s.show_generated_secrets, id="show-gen")
+            yield Label("Generation preset / length:")
+            yield Select(((p, p) for p in PRESETS), value=s.generate_preset, id="preset")
+            yield Input(value=str(s.generate_length), id="length")
+            yield Static("", id="settings-warning")
+            yield Button("Save", variant="primary", id="save")
+            yield Button("Cancel", id="cancel")
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        warning = self.query_one("#settings-warning", Static)
+        if not event.value:
+            warning.update("⚠ Generated values will NEVER be displayed anywhere. "
+                           "They will only be retrievable via manual reveal.")
+        else:
+            warning.update("")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel":
+            self.dismiss(None)
+            return
+        s = self.app.settings
+        s.show_generated_secrets = self.query_one("#show-gen", Checkbox).value
+        s.generate_preset = self.query_one("#preset", Select).value
+        try:
+            s.generate_length = max(1, int(self.query_one("#length", Input).value))
+        except ValueError:
+            pass
+        save_settings(s)
+        self.app.notify("settings saved")
+        self.dismiss(None)
