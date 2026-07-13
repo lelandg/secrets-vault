@@ -16,18 +16,30 @@ not through the CLI, not through the files on disk, not through logs.
 - `registry.toml` and `state.toml`, the two files an agent can freely read
   and edit, contain **no secret material by construction** — names,
   descriptions, tags, target locations, and salted push-state hashes only.
-- Every command an agent can meaningfully run non-interactively (`sv list`,
-  `sv show`, `sv targets`, `sv plan`, `sv config check`, `sv apply
-  --dry-run`) passes all of its output through a central redactor
-  (`redact.py`) that strips any string that has ever been seen as a real
-  secret value, in-process, before it reaches stdout, stderr, or a log
-  file — even if a future code change accidentally tried to print one.
+- The read/plan commands an agent can meaningfully run non-interactively
+  (`sv list`, `sv show`, `sv targets`, `sv plan`, `sv apply --dry-run`) are
+  safe for a **structural** reason, not a filtering one: they never call
+  `Vault.load()`, so a secret value is never decrypted or held in memory in
+  the first place. They only ever read `registry.toml` and `state.toml` —
+  data structures that contain no values — so there is nothing for these
+  commands to print even in principle. This is stronger than output
+  filtering: there's no value in scope to leak.
 - Commands that touch real values (`sv set`, `sv apply` for a real push,
   entering a value in `sv tui`) require a passphrase read via `getpass()`
   gated on `sys.stdin.isatty()`. There is no flag, environment variable, or
   stdin-pipe path to supply the passphrase. An agent driving `sv`
   non-interactively hits `TTYRequiredError` before any prompt is even
   shown — it cannot unlock the vault by construction, not by convention.
+- Once a value *has* been loaded (inside `set`/`apply`/`tui`, after the
+  vault is unlocked), a redactor (`redact.py`) is a defense-in-depth
+  backstop: `Vault.load()`/`Vault.save()` register every value they see
+  with a process-wide `REDACTOR`, and `main()`'s top-level exception
+  handler plus the executor's SSH/command error paths (`executor.py`) run
+  their text through `redact()` before it reaches stderr or the log file.
+  This is what protects against a value leaking through an error message
+  or a log line on a code path that legitimately handles it — it plays no
+  part in why `list`/`show`/`targets`/`plan`/`apply --dry-run` are safe,
+  since those commands never populate the redactor to begin with.
 - `sv generate` is the one deliberate exception: it prints a value, but
   that value is freshly random and was never stored anywhere before being
   printed. It is not a secret being retrieved — it's closer to `openssl
@@ -35,10 +47,13 @@ not through the CLI, not through the files on disk, not through logs.
   all, generate it interactively in `sv tui` or `sv set --generate`
   instead.
 
-This is covered by an executable audit test
-(`tests/test_redaction_audit.py`) that seeds a real secret value and
-asserts it never appears in the combined stdout+stderr of every
-agent-reachable command.
+The read/plan/dry-run guarantee above is covered by an executable
+regression test (`tests/test_redaction_audit.py`), which seeds a real
+secret value and asserts it never appears in the combined stdout+stderr of
+`sv list`, `sv show`, `sv targets`, `sv plan` (all with and without
+`--json`), and `sv apply --dry-run`. If a future code change ever added a
+`print()` of a real value to one of these commands, this test — not the
+redactor — is what would catch it.
 
 ### 2. Shoulder-surfing / casual over-the-shoulder exposure
 
@@ -148,11 +163,17 @@ These are the concrete rules the implementation guarantees, summarized:
    raises `TTYRequiredError` immediately. This is the single mechanism that
    makes agents structurally unable to unlock the vault or run `sv
    apply`/`sv set`.
-2. **Values never leak.** Never in argv, logs, exceptions, CLI output, or
-   temp files. Central redaction (`redact.py`) is exercised by
-   `tests/test_redaction_audit.py`, which is the executable form of this
-   invariant. Transit to remotes is SSH stdin, never `scp` of a plaintext
-   local file. Command targets receive the value on stdin only.
+2. **Values never leak.** Never in argv (SSH/command values travel via
+   stdin only), never in the output of `list`/`show`/`targets`/`plan`/`apply
+   --dry-run` (those never load a value to begin with — structural, see
+   above), and never in logs, exceptions, or error output on the paths that
+   *do* handle a value (`set`/`apply`/`tui`), where `redact.py`'s
+   `REDACTOR` — populated by `Vault.load()`/`Vault.save()` — scrubs the log
+   filter, the top-level exception handler, and the executor's error
+   messages. `tests/test_redaction_audit.py` is the executable regression
+   test for the read/plan/dry-run half of this invariant. Transit to
+   remotes is SSH stdin, never `scp` of a plaintext local file. Command
+   targets receive the value on stdin only.
 3. **TUI masks by default.** Explicit keypress (`r`) reveals one field at a
    time; `Escape` or moving selection re-masks it.
 4. **File hygiene.** Config dir `0700`; written files `0600` (or the

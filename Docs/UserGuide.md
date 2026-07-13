@@ -84,7 +84,7 @@ stale ones).
 $ sv plan
 hermes:
   write /opt/maestro/.env (stale: maestro/DATABASE_URL)
-  exec  sudo systemctl restart maestro-worker
+  exec  systemctl restart maestro-worker
 
 $ sv plan --secret OPENAI_API_KEY --json
 [
@@ -97,8 +97,10 @@ $ sv plan --secret OPENAI_API_KEY --json
 ]
 ```
 
-Every string this command can print is redacted centrally — there is no
-values-in-a-plan code path.
+`sv plan` never opens the vault, so there is no values-in-a-plan code
+path — not because output is filtered, but because a value is never loaded
+into memory to print in the first place. See
+[Docs/Security.md](Security.md) for the full guarantee.
 
 ### `sv generate [--preset P] [--length N]`
 
@@ -215,7 +217,7 @@ hermes:
 Push? [y/N] y
 Vault passphrase: ****
   ✓ write-file prod-maestro on hermes: wrote /opt/maestro/.env
-  ✓ exec worker on hermes: restarted maestro-worker
+  ✓ restart worker on hermes: ok
 2/2 steps succeeded
 ```
 

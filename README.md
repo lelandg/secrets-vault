@@ -100,7 +100,7 @@ hard line: **structure yes, values never.**
 |---|---|---|
 | `registry.toml` (secret names, targets, hosts, paths) | Yes — plaintext, agent-readable/writable | Structure only; no secret material lives here |
 | `state.toml` (salted hashes, staleness, timestamps) | Yes | Salted HMAC hashes, not reversible to a value |
-| `sv list`, `sv show`, `sv targets`, `sv plan` (incl. `--json`) | Yes | Every string these commands print is passed through a central redactor; values can never appear even if a bug tried to put one there |
+| `sv list`, `sv show`, `sv targets`, `sv plan` (incl. `--json`) | Yes | These commands never open the vault and never load a secret value into memory — they only read `registry.toml`/`state.toml`, which by construction hold no values. Redaction (`redact.py`) is a separate backstop for the paths that *do* handle values — see below |
 | `sv apply --dry-run` | Yes | Renders the plan, writes nothing, prompts for nothing |
 | `vault.age` (encrypted secret values) | No | age-passphrase-encrypted; opaque without the passphrase |
 | `sv set`, `sv apply` (real push), `sv tui` value entry | No | All require a passphrase read via `getpass` **from an interactive TTY**; there is no flag, environment variable, or stdin-pipe way to supply it |
@@ -109,9 +109,14 @@ That TTY requirement is the actual enforcement mechanism, not a convention:
 `read_passphrase()` calls `sys.stdin.isatty()` and raises before ever
 prompting if the caller isn't an interactive terminal. An agent driving `sv`
 through a non-interactive shell is structurally unable to unlock the vault —
-there's no code path that would let it. A test suite (`sv generate`
-excepted — see below) asserts that no secret value string can ever appear in
-CLI stdout/stderr, logs, or exception text.
+there's no code path that would let it. `tests/test_redaction_audit.py`
+(`sv generate` excepted — see below) seeds a real secret value and asserts
+it never appears in the stdout/stderr of `list`, `show`, `targets`, `plan`,
+or `apply --dry-run` — an executable regression guard for the value-free
+guarantee above, not the mechanism that makes those commands safe. Values
+that do reach a live code path — logs, exceptions, executor error output
+from `set`/`apply`/`tui` — are scrubbed by a redactor (`redact.py`) as a
+separate backstop; see [Docs/Security.md](Docs/Security.md).
 
 The one deliberate exception is `sv generate`, which prints a **freshly
 generated random string that was never stored** — not a secret retrieved
