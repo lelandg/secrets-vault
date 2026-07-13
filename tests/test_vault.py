@@ -49,3 +49,10 @@ def test_passphrase_confirm_mismatch(monkeypatch):
     monkeypatch.setattr("getpass.getpass", lambda prompt="": next(answers))
     with pytest.raises(VaultError):
         read_passphrase(confirm=True)
+
+
+def test_vault_file_mode_0600(tmp_path):
+    import os, stat
+    v = Vault(tmp_path / "vault.age")
+    v.save({"A": {"value": "modecheck-value-1", "updated_at": "x"}}, "pw")
+    assert stat.S_IMODE(os.stat(tmp_path / "vault.age").st_mode) == 0o600

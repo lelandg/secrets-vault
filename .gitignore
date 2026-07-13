@@ -14,3 +14,4 @@ settings.toml
 secrets.json
 *.key
 *.pem
+.idea/

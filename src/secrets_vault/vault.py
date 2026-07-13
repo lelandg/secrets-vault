@@ -53,6 +53,9 @@ class Vault:
             REDACTOR.add(entry["value"])
         encrypted = pyrage.passphrase.encrypt(json.dumps(entries).encode(), passphrase)
         tmp = self.path.with_name(self.path.name + ".tmp")
-        tmp.write_bytes(encrypted)
-        tmp.chmod(0o600)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, encrypted)
+        finally:
+            os.close(fd)
         os.replace(tmp, self.path)
