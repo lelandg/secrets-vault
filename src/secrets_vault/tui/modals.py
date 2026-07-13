@@ -47,6 +47,7 @@ class EditValueModal(ModalScreen[tuple[str, bool] | None]):
         self.preset = preset
         self.length = length
         self.generated = False
+        self._generating = False
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
@@ -61,8 +62,10 @@ class EditValueModal(ModalScreen[tuple[str, bool] | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "generate":
             value = generate(self.preset, self.length)
+            self._generating = True
             self.query_one("#value-input", Input).value = value
             self.query_one("#value-confirm", Input).value = value
+            self._generating = False
             self.generated = True
             return
         if event.button.id == "cancel":
@@ -73,6 +76,13 @@ class EditValueModal(ModalScreen[tuple[str, bool] | None]):
             self.app.notify("values are empty or do not match", severity="error")
             return
         self.dismiss((value, self.generated))
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        # a manual edit after Generate means this is no longer a pristine generated value
+        if self._generating:
+            return
+        if event.value and self.generated and event.input.id in ("value-input", "value-confirm"):
+            self.generated = False
 
 
 class GeneratedValueModal(ModalScreen[None]):
@@ -86,7 +96,7 @@ class GeneratedValueModal(ModalScreen[None]):
             yield Static(
                 f"⚠ This value for [b]{self.secret_name}[/b] will not be shown again "
                 "unless you reveal it manually.", id="generated-warning")
-            yield Static(self.value, id="generated-value")
+            yield Static(self.value, id="generated-value", markup=False)
             yield Button("Copy to clipboard", id="copy")
             yield Button("Close", variant="primary", id="close")
 

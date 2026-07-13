@@ -1,6 +1,7 @@
 """Textual TUI. Values live only in self.entries (in-memory, session-only)."""
 from datetime import datetime, timezone
 
+from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Static
@@ -27,6 +28,7 @@ class SvApp(App):
         ("g", "generate", "Generate"),
         ("p", "push", "Push"),
         ("s", "settings", "Settings"),
+        ("escape", "hide_reveal", "Hide"),
         ("q", "quit", "Quit"),
     ]
 
@@ -37,6 +39,7 @@ class SvApp(App):
         self.state = StateStore()
         self.entries: dict | None = None      # None = vault locked
         self.passphrase: str | None = None
+        self._revealed = False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -91,6 +94,7 @@ class SvApp(App):
         detail.update("\n".join(lines))
 
     def on_data_table_row_highlighted(self, _event) -> None:
+        self._revealed = False
         self.update_detail()
 
     async def ensure_unlocked(self) -> bool:
@@ -122,12 +126,12 @@ class SvApp(App):
             self.registry.save()
         self.refresh_table()
         if generated:
-            if self.settings.show_generated_secrets:
-                self.show_generated(name, value)
-            else:
-                self.notify(f"stored generated value for {name} (display disabled)")
+            self.show_generated(name, value)
 
     def show_generated(self, name: str, value: str) -> None:
+        if not self.settings.show_generated_secrets:
+            self.notify(f"stored generated value for {name} (display disabled)")
+            return
         self.push_screen(GeneratedValueModal(name, value))
 
     async def _edit(self, name: str) -> None:
@@ -168,7 +172,13 @@ class SvApp(App):
             self.notify("no value set", severity="warning")
             return
         detail = self.query_one("#detail", Static)
-        detail.update(f"[b]{name}[/b]\n\nvalue: {entry['value']}\n\n(press any arrow key to hide)")
+        detail.update(f"[b]{escape(name)}[/b]\n\nvalue: {escape(entry['value'])}\n\n(press Escape to hide)")
+        self._revealed = True
+
+    def action_hide_reveal(self) -> None:
+        if self._revealed:
+            self._revealed = False
+            self.update_detail()
 
     def action_push(self) -> None:
         pass
