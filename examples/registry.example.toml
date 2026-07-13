@@ -1,0 +1,36 @@
+# Example secrets-vault registry (lives at ~/.config/secrets-vault/registry.toml).
+# Structure only — values live encrypted in vault.age.
+
+[secrets.OPENAI_API_KEY]
+description = "Shared OpenAI key used by several apps"
+tags = ["ai"]
+
+[secrets."myapp/DATABASE_URL"]
+description = "myapp production Postgres DSN"
+
+[targets.prod-myapp]
+type = "env-file"
+project = "myapp"
+host = "prodbox"                 # ssh alias from ~/.ssh/config
+path = "/opt/myapp/.env"
+mode = "600"
+owner = "myapp:myapp"
+keys = ["OPENAI_API_KEY"]
+restart = ["sudo systemctl restart myapp"]
+[targets.prod-myapp.key_map]
+"myapp/DATABASE_URL" = "DATABASE_URL"
+
+[targets.worker]
+type = "systemd"
+project = "myapp"
+host = "prodbox"
+unit = "myapp-worker.service"
+path = "/etc/myapp/worker.env"
+keys = ["OPENAI_API_KEY"]
+
+[targets.github-actions]
+type = "command"
+project = "myapp"
+host = "local"
+command = ["gh", "secret", "set", "OPENAI_API_KEY", "-R", "me/myapp"]
+keys = ["OPENAI_API_KEY"]

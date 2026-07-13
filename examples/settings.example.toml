@@ -1,0 +1,7 @@
+# ~/.config/secrets-vault/settings.toml
+vault_path = ""                    # empty = ~/.config/secrets-vault/vault.age
+project_roots = ["/home/me/code"]  # where /import-secrets sweeps
+generate_preset = "urlsafe"
+generate_length = 32
+show_generated_secrets = true
+ssh_options = []
