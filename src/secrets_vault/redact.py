@@ -2,6 +2,7 @@
 here, and all user-visible/logged text is filtered through redact()."""
 import logging
 import os
+import traceback
 
 from . import paths
 
@@ -33,6 +34,14 @@ class _RedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg = REDACTOR.redact(record.getMessage())
         record.args = ()
+        if record.exc_info and not record.exc_text:
+            record.exc_text = REDACTOR.redact(
+                "".join(traceback.format_exception(*record.exc_info)).rstrip())
+            record.exc_info = None
+        elif record.exc_text:
+            record.exc_text = REDACTOR.redact(record.exc_text)
+        if record.stack_info:
+            record.stack_info = REDACTOR.redact(record.stack_info)
         return True
 
 

@@ -48,3 +48,20 @@ def test_logger_follows_env_change(tmp_path, monkeypatch):
     second = log2.handlers[0].baseFilename
     assert first != second
     assert str(tmp_path / "two") in second
+
+
+def test_logger_redacts_exception_tracebacks(tmp_home):
+    import logging as _logging
+    from secrets_vault import paths
+    from secrets_vault.redact import REDACTOR, get_logger
+    REDACTOR.add("traceback-secret-99")
+    log = get_logger()
+    try:
+        raise RuntimeError("boom traceback-secret-99")
+    except RuntimeError:
+        log.exception("command failed")
+    for h in log.handlers:
+        h.flush()
+    text = (paths.logs_dir() / "sv.log").read_text()
+    assert "traceback-secret-99" not in text
+    assert "[REDACTED]" in text
