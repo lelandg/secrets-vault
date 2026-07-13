@@ -369,6 +369,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--force", action="store_true")
     sp.add_argument("--yes", action="store_true")
     sp.set_defaults(fn=_cmd_apply)
+
+    sp = sub.add_parser("tui", help="launch the TUI")
+    sp.set_defaults(fn=lambda args: (__import__("secrets_vault.tui.app", fromlist=["run"]).run(), 0)[1])
     return p
 
 
