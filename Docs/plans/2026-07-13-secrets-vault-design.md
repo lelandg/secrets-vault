@@ -31,7 +31,7 @@ value everywhere and restarts what needs restarting.
 | Decision | Choice |
 |---|---|
 | Storage at rest | Single `age` passphrase-encrypted vault file |
-| Stack | Python 3.10+ / Textual TUI; `age` as system binary via subprocess |
+| Stack | Python 3.10+ / Textual TUI; age-format vault via the `pyrage` library |
 | Push targets (v1) | Remote env files via SSH, systemd EnvironmentFile+restart, stdin command targets |
 | Push flow | Plan → single confirm → apply (restarts included in the plan) |
 | Agent access | Structure/plan only; values and apply require an interactive TTY |
@@ -43,6 +43,12 @@ management), OS keyring (flaky under WSL/headless), plaintext+perms (no
 protection from same-user processes), glue over sops (weak UX, poor
 public-repo reuse), unlock daemon (long-lived plaintext memory next to an
 agent boundary; 2x code).
+
+Note on `age`: the plan originally called for the `age` CLI via subprocess,
+but the CLI deliberately accepts passphrases only from its own TTY prompt,
+which is incompatible with prompting via `getpass` and encrypting
+in-process. `pyrage` produces the identical age-v1 file format, so
+`vault.age` remains decryptable manually with the `age` CLI.
 
 ## 3. Data model
 
@@ -141,7 +147,7 @@ defaults
 ```
 src/secrets_vault/
 ├── registry.py     # load/validate/save registry.toml (tomlkit, round-trip safe)
-├── vault.py        # age subprocess wrapper: decrypt→dict, dict→encrypt; TTY passphrase
+├── vault.py        # age-format vault via pyrage: decrypt→dict, dict→encrypt; TTY passphrase
 ├── state.py        # salted-hash push state
 ├── planner.py      # (changed secrets, selection) → Plan{host → steps}
 ├── executor.py     # runs a Plan: ssh/local subprocesses, per-step results
@@ -249,8 +255,8 @@ just the current repo. It instructs the agent to:
 - Per-target isolation: SSH/command failures recorded in plan results,
   execution continues for other targets.
 - `sv apply --dry-run` renders everything, writes nothing.
-- Startup checks: `age` binary present (clear install hint if not), config
-  dir perms, registry schema validation with precise messages.
+- Startup checks: config dir perms, registry schema validation with
+  precise messages.
 - All errors logged (redacted) to `~/.config/secrets-vault/logs/`.
 
 ## 10. Testing
@@ -269,14 +275,16 @@ just the current repo. It instructs the agent to:
 ## 11. Distribution
 
 `pyproject.toml`, installable via `pipx install secrets-vault` / `uv tool
-install`. Deps: `textual`, `tomlkit`, `pyperclip`. System requirement:
-`age`, `ssh`.
+install`. Deps: `textual`, `tomlkit`, `pyperclip`, `pyrage`. System
+requirement: `ssh` (the `age` CLI is optional, for manual vault
+inspection).
 Dev on this machine uses `.venv_linux` + `python3` per house rules.
 
 ## 12. Out of scope (v1)
 
-- Local-file targets (workaround: `host = "local"` command targets; native
-  support can come later).
+- (Local targets are in scope after all: `host = "local"` works for
+  env-file and command targets alike — the import skill needs it to point
+  targets back at project `.env` files.)
 - Multi-user/team sharing, secret versioning/history, rotation scheduling.
 - Windows-native support (WSL is the supported environment; the code avoids
   gratuitous Linux-isms so a later port is feasible).
