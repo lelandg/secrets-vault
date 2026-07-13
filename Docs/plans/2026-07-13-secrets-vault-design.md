@@ -17,6 +17,15 @@ yes, values never.** Agents can discover and register where secrets live,
 inspect staleness, and compute plans — but can never read, set, or deploy
 secret values.
 
+**Central means all projects, one registry.** The registry is not per-repo:
+it models every project on the machine at once, with each *logical* secret
+recorded exactly once no matter how many apps consume it. The motivating
+scenario: an API key is compromised. `sv show OPENAI_API_KEY` answers "this
+key is also used by apps X, Y and Z" (every consuming target, grouped by
+project). You enter the replacement value once; the plan screen shows every
+affected host/file/service across all projects; one apply pushes the new
+value everywhere and restarts what needs restarting.
+
 ## 2. Decisions made
 
 | Decision | Choice |
@@ -41,20 +50,33 @@ All under `~/.config/secrets-vault/` (created 0700):
 
 ### 3.1 `registry.toml` — plaintext structure, NO values (agent-read/writable)
 
+Secret names are **logical identities**, machine-wide. A key shared by many
+apps is one secret; a key that merely has the same env-var *name* in two
+apps but different values (e.g. each app's `DATABASE_URL`) is two secrets,
+disambiguated by a `project/` prefix (`maestro/DATABASE_URL`,
+`quickstock/DATABASE_URL`). Targets map logical names to the env-var name
+each file expects, so the rendered file still says `DATABASE_URL=`.
+
 ```toml
-[secrets.OPENAI_API_KEY]
+[secrets.OPENAI_API_KEY]                # shared: one identity, many apps
 description = "OpenAI key used by ImageAI and Maestro"
 tags = ["ai", "chameleonlabs"]
 
+[secrets."maestro/DATABASE_URL"]        # app-scoped: project/ prefix
+description = "Maestro production Postgres"
+
 [targets.hermes-maestro]
 type = "env-file"                 # env-file | systemd | command
+project = "maestro"               # groups targets by app for `sv show`
 host = "hermes"                   # ssh alias from ~/.ssh/config
 path = "/opt/maestro/.env"
 format = "dotenv"                 # dotenv | env (KEY="value")
 owner = "maestro:maestro"         # optional; chown after write
 mode = "600"
-keys = ["OPENAI_API_KEY", "DATABASE_URL"]
+keys = ["OPENAI_API_KEY"]         # env-var name == logical name
 restart = ["sudo systemctl restart maestro"]   # optional, any commands
+[targets.hermes-maestro.key_map]  # logical name -> env-var name in the file
+"maestro/DATABASE_URL" = "DATABASE_URL"
 
 [targets.devbox-worker]
 type = "systemd"
@@ -89,7 +111,9 @@ worst case is everything shows stale.
 
 ### 3.4 `settings.toml` + `logs/`
 
-Small app settings: `vault_path`, ssh options, generation defaults
+Small app settings: `vault_path`, `project_roots` (directories the import
+skill sweeps, e.g. `/mnt/d/Documents/Code/GitHub`), ssh options, generation
+defaults
 (`generate_preset`, `generate_length`), and `show_generated_secrets`
 (§7.1). Errors logged per-run to `logs/` with values redacted
 (all-errors-logged rule).
@@ -136,7 +160,7 @@ takes a Plan and a value-provider callback so tests can inject fakes.
 
 | Command | Purpose | Values? |
 |---|---|---|
-| `sv list` / `sv show <secret>` | structure + staleness | redacted |
+| `sv list` / `sv show <secret>` | structure + staleness; `show` lists every consuming target grouped by project ("used in X, Y, Z") | redacted |
 | `sv targets` | list targets | redacted |
 | `sv plan [--secret X] [--target Y] [--json]` | what would be pushed where | redacted |
 | `sv config check` | validate registry, probe SSH reachability | redacted |
@@ -195,16 +219,30 @@ Any value field (add/edit secret, `sv set --generate`) offers **Generate**
 
 ## 8. Claude Code skill — `skills/import-secrets/`
 
-Invoked as `/import-secrets` in any project. Instructs the agent to:
+Invoked as `/import-secrets [path|--all]`. Default is `--all`: the skill
+configures the central app for **every project the agent can find**, not
+just the current repo. It instructs the agent to:
 
-1. Scan the project for secret **locations**: `.env*`, `EnvironmentFile=` in
-   unit files, docker-compose `env_file:`, CI secret references.
-2. Use its knowledge of the user's machines (`~/.ssh/config` aliases,
-   deployment layout) to propose `host`/`path` per target; use
+1. Determine project roots — from the user's known code locations (e.g.
+   `/mnt/d/Documents/Code/GitHub/*`), settings.toml `project_roots`, or an
+   explicit path argument — and enumerate the projects under them.
+2. Scan each project for secret **locations**: `.env*`, `EnvironmentFile=`
+   in unit files, docker-compose `env_file:`, CI secret references.
+3. **Resolve identity across projects** — the step that makes rotation
+   work. For each discovered key name, decide whether it is the *same
+   logical secret* as one already registered (same provider key reused →
+   add this project's target to the existing secret) or merely a name
+   collision (per-app values → register as `project/KEY`). Signals: key
+   name + provider conventions, same value-shape hints in `.env.example`,
+   agent knowledge of the apps. Use AskUserQuestion when ambiguous.
+4. Use its knowledge of the user's machines (`~/.ssh/config` aliases,
+   deployment layout) to propose `host`/`path`/`project` per target; use
    AskUserQuestion when ambiguous.
-3. Register structure via `sv import` / editing `registry.toml`.
-4. **Never read or echo secret values** — key names only.
-5. Finish by telling the user to run `sv tui` to enter values and push.
+5. Register structure via `sv import` / editing `registry.toml`, always
+   deduplicating against the existing registry (re-running the skill is
+   idempotent — it adds new findings, never duplicates).
+6. **Never read or echo secret values** — key names only.
+7. Finish by telling the user to run `sv tui` to enter values and push.
 
 ## 9. Error handling
 
