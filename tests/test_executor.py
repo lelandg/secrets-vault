@@ -76,3 +76,15 @@ def test_dry_run_touches_nothing():
     results = ex.execute(Plan([wf_step()]), dry_run=True)
     assert results[0].ok and results[0].message == "dry-run"
     assert r.calls == []
+
+
+def test_local_write_mode_survives_permissive_umask(tmp_path):
+    import os as _os
+    old = _os.umask(0o000)
+    try:
+        p = tmp_path / "app.env"
+        ex = Executor(VALUES.__getitem__, runner=FakeRunner())
+        ex.execute(Plan([wf_step(host="local", path=str(p))]))
+        assert (p.stat().st_mode & 0o777) == 0o600
+    finally:
+        _os.umask(old)

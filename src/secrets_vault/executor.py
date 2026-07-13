@@ -60,8 +60,11 @@ class Executor:
             p = Path(d["path"]).expanduser()
             p.parent.mkdir(parents=True, exist_ok=True)
             tmp = p.with_name(p.name + ".svtmp")
-            tmp.write_text(content)
-            tmp.chmod(int(d["mode"], 8))
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, int(d["mode"], 8))
+            try:
+                os.write(fd, content.encode())
+            finally:
+                os.close(fd)
             os.replace(tmp, p)
             return True, f"wrote {p}"
         q = shlex.quote(d["path"])
