@@ -20,14 +20,16 @@ def step_label(step) -> str:
 
 
 class PlanScreen(ModalScreen):
-    def __init__(self, plan) -> None:
+    def __init__(self, plan, scope: str | None = None) -> None:
         super().__init__()
         self.plan = plan
+        self.scope = scope
         self._step_nodes = {}
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
-            tree: Tree = Tree("push plan", id="plan-tree")
+            title = f"push plan — {self.scope}" if self.scope else "push plan"
+            tree: Tree = Tree(title, id="plan-tree")
             tree.root.expand()
             for host, steps in self.plan.by_host().items():
                 host_node = tree.root.add(host, expand=True)

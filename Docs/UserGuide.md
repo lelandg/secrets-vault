@@ -330,6 +330,15 @@ identical to the logical name; `key_map` handles cases where they differ
 (shared secrets that a project-scoped file still expects under its own
 env-var name) or where the logical name is app-scoped (`project/KEY`).
 
+> **Full-overwrite caveat.** On every apply, the target file is fully
+> rewritten with *only* the keys registered for that target (the file
+> content is regenerated from scratch each time, not patched in place). Any
+> pre-existing key in that file that isn't registered in `registry.toml` is
+> **dropped** the first time secrets-vault writes to it. Register every key
+> the file needs — `sv import` does this automatically when pointed at an
+> existing `.env` — or point `path` at a dedicated file managed only by
+> secrets-vault, separate from any hand-maintained env file.
+
 ### `systemd` — write an `EnvironmentFile` and restart a unit
 
 ```toml

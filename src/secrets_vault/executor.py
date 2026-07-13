@@ -1,6 +1,7 @@
 """Executes a Plan. Values travel only via stdin — never argv, never temp files."""
 import os
 import shlex
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,6 +67,12 @@ class Executor:
             finally:
                 os.close(fd)
             os.replace(tmp, p)
+            if d["owner"]:
+                user, _, group = d["owner"].partition(":")
+                try:
+                    shutil.chown(p, user or None, group or None)
+                except (LookupError, PermissionError) as exc:
+                    return False, f"wrote {p} but chown failed: {exc}"
             return True, f"wrote {p}"
         q = shlex.quote(d["path"])
         remote = (f"umask 077 && cat > {q}.svtmp && mv {q}.svtmp {q}"

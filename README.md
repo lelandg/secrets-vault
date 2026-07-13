@@ -89,6 +89,16 @@ sv apply            # confirm once, pushes to every stale target
 `sv apply --dry-run` renders the full plan and touches nothing — safe to run
 any time, including from a script or an agent.
 
+**Caveat: env-file targets are fully overwritten.** Every `env-file` /
+`systemd` target is rewritten from scratch on each apply — a
+`# managed by secrets-vault` file containing only the keys registered for
+that target. Any pre-existing key in that file that isn't registered is
+dropped the first time secrets-vault writes to it. `sv import` registers all
+keys in an existing `.env` for you, so importing first avoids this; or point
+the target at a dedicated file that secrets-vault alone manages. See
+[Docs/UserGuide.md](Docs/UserGuide.md#env-file--write-a-dotenv-style-file-local-or-remote)
+for details.
+
 ## The agent-safety model
 
 AI coding agents (Claude Code and similar) are meant to help you set

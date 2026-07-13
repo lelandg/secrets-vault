@@ -78,6 +78,44 @@ def test_dry_run_touches_nothing():
     assert r.calls == []
 
 
+def test_local_write_honors_owner_current_user(tmp_path):
+    """Local write branch must chown when owner is set — matches the remote
+    branch's chown behavior. Uses the current user so it succeeds without
+    root privilege."""
+    import getpass
+    user = getpass.getuser()
+    p = tmp_path / "app.env"
+    ex = Executor(VALUES.__getitem__, runner=FakeRunner())
+    step = wf_step(host="local", path=str(p))
+    step.detail["owner"] = user
+    results = ex.execute(Plan([step]))
+    assert results[0].ok, results[0].message
+    assert "API_KEY=sk-live-secret-xyz" in p.read_text()
+
+
+def test_local_write_owner_unset_still_works(tmp_path):
+    """No regression: owner unset (empty string) means no chown attempted."""
+    p = tmp_path / "app.env"
+    ex = Executor(VALUES.__getitem__, runner=FakeRunner())
+    results = ex.execute(Plan([wf_step(host="local", path=str(p))]))
+    assert results[0].ok, results[0].message
+    assert "API_KEY=sk-live-secret-xyz" in p.read_text()
+
+
+def test_local_write_bogus_owner_fails_with_chown_message(tmp_path):
+    """A nonexistent owner should surface a clear ok=False chown-failed
+    message rather than silently succeeding or crashing."""
+    p = tmp_path / "app.env"
+    ex = Executor(VALUES.__getitem__, runner=FakeRunner())
+    step = wf_step(host="local", path=str(p))
+    step.detail["owner"] = "sv-nonexistent-user-xyz:sv-nonexistent-group-xyz"
+    results = ex.execute(Plan([step]))
+    assert results[0].ok is False
+    assert "chown failed" in results[0].message
+    # file was still written before the chown attempt
+    assert p.exists()
+
+
 def test_local_write_sets_mode_at_creation_without_chmod(tmp_path, monkeypatch):
     """The final mode must come from os.open's mode arg, not a later chmod —
     a separate chmod step would reintroduce a world-readable window."""

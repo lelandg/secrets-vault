@@ -188,8 +188,9 @@ class SvApp(App):
             return
         from ..planner import build_plan
         from .plan_screen import PlanScreen
-        plan = build_plan(self.registry, self.state)
-        self.push_screen(PlanScreen(plan))
+        name = self.selected_secret()
+        plan = build_plan(self.registry, self.state, secrets=[name] if name else None)
+        self.push_screen(PlanScreen(plan, scope=name))
 
     def action_settings(self) -> None:
         from .modals import SettingsScreen
