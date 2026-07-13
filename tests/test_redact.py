@@ -36,3 +36,15 @@ def test_logger_redacts(tmp_home):
     text = (paths.logs_dir() / "sv.log").read_text()
     assert "hunter2hunter2" not in text
     assert "[REDACTED]" in text
+
+
+def test_logger_follows_env_change(tmp_path, monkeypatch):
+    from secrets_vault.redact import get_logger
+    monkeypatch.setenv("SECRETS_VAULT_HOME", str(tmp_path / "one"))
+    log1 = get_logger()
+    first = log1.handlers[0].baseFilename
+    monkeypatch.setenv("SECRETS_VAULT_HOME", str(tmp_path / "two"))
+    log2 = get_logger()
+    second = log2.handlers[0].baseFilename
+    assert first != second
+    assert str(tmp_path / "two") in second

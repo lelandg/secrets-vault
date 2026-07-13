@@ -1,6 +1,7 @@
 """Central redaction: every secret value ever seen in-process gets registered
 here, and all user-visible/logged text is filtered through redact()."""
 import logging
+import os
 
 from . import paths
 
@@ -37,10 +38,30 @@ class _RedactingFilter(logging.Filter):
 
 def get_logger() -> logging.Logger:
     log = logging.getLogger("secrets_vault")
-    if not log.handlers:
+    log.propagate = False
+
+    # Compute the intended log path
+    intended_path = str((paths.logs_dir() / "sv.log").resolve())
+
+    # Check if a handler with this path already exists
+    handler_exists = False
+    for handler in log.handlers:
+        if isinstance(handler, logging.FileHandler):
+            current_path = str(os.path.abspath(handler.baseFilename))
+            if current_path == intended_path:
+                handler_exists = True
+                break
+
+    # If no matching handler exists, remove all handlers and add a new one
+    if not handler_exists:
+        for handler in log.handlers[:]:  # Copy the list to avoid modifying while iterating
+            handler.close()
+            log.removeHandler(handler)
+
         handler = logging.FileHandler(paths.logs_dir() / "sv.log")
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
         handler.addFilter(_RedactingFilter())
         log.addHandler(handler)
         log.setLevel(logging.INFO)
+
     return log
