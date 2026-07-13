@@ -1,0 +1,16 @@
+.venv*/
+__pycache__/
+*.pyc
+dist/
+build/
+*.egg-info/
+# defense in depth: user data never belongs in the clone
+.env*
+!.env.example
+*.age
+registry.toml
+state.toml
+settings.toml
+secrets.json
+*.key
+*.pem
