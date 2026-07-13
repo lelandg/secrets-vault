@@ -1,11 +1,11 @@
 """Render env dicts to dotenv / env-file text. Deterministic: sorted keys."""
 import re
 
-_PLAIN = re.compile(r"^[A-Za-z0-9._:/@+=-]+$")
+_PLAIN = re.compile(r"\A[A-Za-z0-9._:/@+=-]+\Z")
 
 
 def _escape(value: str) -> str:
-    return value.replace("\\", "\\\\").replace('"', '\\"')
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
 def _line(key: str, value: str, fmt: str) -> str:
