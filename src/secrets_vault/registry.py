@@ -117,7 +117,8 @@ class Registry:
         return [t for t in self.targets.values() if secret_name in t.all_keys()]
 
     def add_secret(self, s: Secret) -> bool:
-        if s.name in self.secrets:
+        existing = self.secrets.get(s.name)
+        if existing == s:
             return False
         self.secrets[s.name] = s
         return True

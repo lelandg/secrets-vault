@@ -67,3 +67,11 @@ def test_validate_ok():
     reg.add_secret(Secret(name="API_KEY"))
     reg.add_target(make_target())
     assert reg.validate() == []
+
+
+def test_add_secret_merges_changed_metadata():
+    reg = Registry()
+    assert reg.add_secret(Secret(name="A")) is True
+    assert reg.add_secret(Secret(name="A", description="updated")) is True
+    assert reg.secrets["A"].description == "updated"
+    assert reg.add_secret(Secret(name="A", description="updated")) is False
