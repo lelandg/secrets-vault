@@ -1,11 +1,15 @@
 """Textual TUI. Values live only in self.entries (in-memory, session-only)."""
+from datetime import datetime, timezone
+
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Static
 
-from ..registry import Registry
+from ..registry import Registry, Secret
 from ..settings import load_settings
 from ..state import StateStore
+from ..vault import Vault, VaultError
+from .modals import EditValueModal, GeneratedValueModal, NameModal, PassphraseModal
 
 MASK = "••••••••"
 
@@ -89,19 +93,82 @@ class SvApp(App):
     def on_data_table_row_highlighted(self, _event) -> None:
         self.update_detail()
 
-    # -- action stubs — wired in Tasks 14-15, declared now so bindings don't
-    # crash the app when pressed.
-    def action_new_secret(self) -> None:
-        pass
+    async def ensure_unlocked(self) -> bool:
+        if self.entries is not None:
+            return True
+        vault = Vault(self.settings.resolved_vault_path())
+        create = not vault.exists()
+        pw = await self.push_screen_wait(PassphraseModal(create_mode=create))
+        if not pw:
+            return False
+        try:
+            self.entries = vault.load(pw) if not create else {}
+        except VaultError as exc:
+            self.notify(str(exc), severity="error")
+            return False
+        self.passphrase = pw
+        return True
+
+    def save_vault(self) -> None:
+        Vault(self.settings.resolved_vault_path()).save(self.entries, self.passphrase)
+
+    def _store_value(self, name: str, value: str, generated: bool) -> None:
+        self.entries[name] = {"value": value,
+                              "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        self.save_vault()
+        self.state.set_value_hash(name, value)
+        if name not in self.registry.secrets:
+            self.registry.add_secret(Secret(name=name))
+            self.registry.save()
+        self.refresh_table()
+        if generated:
+            if self.settings.show_generated_secrets:
+                self.show_generated(name, value)
+            else:
+                self.notify(f"stored generated value for {name} (display disabled)")
+
+    def show_generated(self, name: str, value: str) -> None:
+        self.push_screen(GeneratedValueModal(name, value))
+
+    async def _edit(self, name: str) -> None:
+        if not await self.ensure_unlocked():
+            return
+        result = await self.push_screen_wait(
+            EditValueModal(name, self.settings.generate_preset, self.settings.generate_length))
+        if result:
+            value, generated = result
+            self._store_value(name, value, generated)
 
     def action_edit_secret(self) -> None:
-        pass
-
-    def action_reveal(self) -> None:
-        pass
+        name = self.selected_secret()
+        if name:
+            self.run_worker(self._edit(name))
 
     def action_generate(self) -> None:
-        pass
+        self.action_edit_secret()   # same modal; Generate button inside
+
+    def action_new_secret(self) -> None:
+        self.run_worker(self._new())
+
+    async def _new(self) -> None:
+        # minimal: prompt for a name via an Input modal reusing EditValueModal pattern
+        name = await self.push_screen_wait(NameModal())
+        if name:
+            await self._edit(name)
+
+    def action_reveal(self) -> None:
+        self.run_worker(self._reveal())
+
+    async def _reveal(self) -> None:
+        name = self.selected_secret()
+        if not name or not await self.ensure_unlocked():
+            return
+        entry = self.entries.get(name)
+        if not entry:
+            self.notify("no value set", severity="warning")
+            return
+        detail = self.query_one("#detail", Static)
+        detail.update(f"[b]{name}[/b]\n\nvalue: {entry['value']}\n\n(press any arrow key to hide)")
 
     def action_push(self) -> None:
         pass
