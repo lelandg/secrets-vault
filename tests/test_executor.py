@@ -78,13 +78,23 @@ def test_dry_run_touches_nothing():
     assert r.calls == []
 
 
-def test_local_write_mode_survives_permissive_umask(tmp_path):
+def test_local_write_sets_mode_at_creation_without_chmod(tmp_path, monkeypatch):
+    """The final mode must come from os.open's mode arg, not a later chmod —
+    a separate chmod step would reintroduce a world-readable window."""
     import os as _os
+    import pathlib
+
+    def _no_chmod(*args, **kwargs):
+        raise AssertionError("chmod must not be called on the local write path")
+
+    monkeypatch.setattr(_os, "chmod", _no_chmod)
+    monkeypatch.setattr(pathlib.Path, "chmod", _no_chmod)
     old = _os.umask(0o000)
     try:
         p = tmp_path / "app.env"
         ex = Executor(VALUES.__getitem__, runner=FakeRunner())
-        ex.execute(Plan([wf_step(host="local", path=str(p))]))
+        results = ex.execute(Plan([wf_step(host="local", path=str(p))]))
+        assert results[0].ok
         assert (p.stat().st_mode & 0o777) == 0o600
     finally:
         _os.umask(old)
