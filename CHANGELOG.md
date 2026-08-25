@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-08-25
+
+### Changed
+- First PyPI release. The distribution name is `secrets-vault-tui` because
+  `secrets-vault` is taken on PyPI. The import package stays `secrets_vault`
+  and the command stays `sv`. Install with `pipx install secrets-vault-tui`.
+- Add PyPI metadata to `pyproject.toml`: authors, keywords, classifiers, and
+  project URLs.
+- Point the install instructions in `README.md` and the Discord release post
+  at the PyPI package instead of the GitHub URL.
+
 ## [0.17.1] - 2026-08-24
 
 ### Fixed
