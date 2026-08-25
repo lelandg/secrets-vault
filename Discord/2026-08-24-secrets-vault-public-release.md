@@ -11,12 +11,12 @@ secrets-vault keeps one encrypted vault of secret values and one central registr
 - Values are age-encrypted on your machine. The repo never sees them
 - `sv import ~/code/myapp/.env` registers your keys from an existing project — names only, it doesn't touch the values
 
-It's a single Python app, MIT licensed, with a real test suite behind it. Install straight from GitHub:
+It's a single Python app, MIT licensed, with a real test suite behind it. Install from PyPI:
 
 ```
-pipx install git+https://github.com/lelandg/secrets-vault
+pipx install secrets-vault-tui
 ```
 
 Repo: https://github.com/lelandg/secrets-vault
 
-If you try it, tell me what breaks. 😊
+If you try it, tell me what you think. 😊

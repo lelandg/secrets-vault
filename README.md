@@ -47,12 +47,12 @@ Nothing gets missed because nothing requires you to remember it.
 ## Install
 
 ```bash
-pipx install git+https://github.com/lelandg/secrets-vault
+pipx install secrets-vault-tui
 ```
 
-(or `uv tool install git+https://github.com/lelandg/secrets-vault`, or install
-from a local clone with `pip install .` in a virtualenv of your own). The
-package is not on PyPI yet — install it from GitHub.
+(or `uv tool install secrets-vault-tui`, or install from a local clone with
+`pip install .` in a virtualenv of your own). The PyPI package is
+`secrets-vault-tui`; the command it installs is `sv`.
 
 **Requirements:**
 - `ssh` on your `PATH`, with working host aliases in `~/.ssh/config` for any
