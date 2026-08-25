@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-08-24
+
+### Fixed
+- README install instructions now install from GitHub (`pipx install git+...`); the package is not on PyPI
+
+### Added
+- Discord release-announcement post under `Discord/`
+
 ## [0.17.0] - 2026-07-13
 
 ### Added
