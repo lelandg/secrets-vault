@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-11-09
+
+### Added
+- `SECURITY.md`: how to report a vulnerability privately. The threat model in
+  `Docs/Security.md` now points to it.
+- `CONTRIBUTING.md`: how to report a bug and open a pull request.
+- CI security scans on every pull request, every push to `main`, and weekly:
+  gitleaks over the commit history, and osv-scanner over the repository.
+- Dependabot configuration for `pip` (`pyproject.toml`) and GitHub Actions.
+
 ## [0.17.2] - 2026-08-25
 
 ### Changed
