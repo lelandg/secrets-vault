@@ -154,7 +154,10 @@ jobs:
           # [project].dependencies into a requirements file OUTSIDE the checkout;
           # osv-scanner resolves it transitively. An empty list fails the job
           # rather than passing an empty scan.
-          python3 - "$RUNNER_TEMP/pyproject-requirements.txt" <<'PY'
+          # -I: isolated mode. `python3 -` puts the working directory (the
+          # PR-controlled checkout) on sys.path, so a PR could commit a
+          # tomllib.py that hides dependencies or runs code.
+          python3 -I - "$RUNNER_TEMP/pyproject-requirements.txt" <<'PY'
           import sys, tomllib
           with open("pyproject.toml", "rb") as fh:
               deps = tomllib.load(fh).get("project", {}).get("dependencies", [])
