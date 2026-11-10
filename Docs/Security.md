@@ -192,3 +192,6 @@ agent-visible file that isn't caught by `tests/test_redaction_audit.py`,
 treat it as the leak it is: that test is meant to be the executable
 contract for invariant 2 above, and a gap in it is a bug worth fixing in
 both the code and the test.
+
+Report it privately, as described in [SECURITY.md](../SECURITY.md), not
+in a public issue.
